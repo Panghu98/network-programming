@@ -145,6 +145,7 @@ public class FileCopyDemo {
 
                     fin = new FileInputStream(source).getChannel();
                     fout = new FileOutputStream(target).getChannel();
+                    // 用于记录拷贝了多少个字节
                     long transferred = 0L;
                     long size = fin.size();
                     while (transferred != size) {
