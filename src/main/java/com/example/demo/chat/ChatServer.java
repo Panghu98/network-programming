@@ -6,6 +6,8 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @author: panghu
@@ -17,6 +19,7 @@ public class ChatServer {
 
     final static int DEFAULT_SERVER_POST = 8080;
     public final static String QUIET = "quite";
+    private ExecutorService executorService;
 
     private ServerSocket serverSocket;
     /**
@@ -28,6 +31,7 @@ public class ChatServer {
      * 初始化Map
      */
     public ChatServer() {
+        executorService = Executors.newFixedThreadPool(4);
         this.connectionClients = new ConcurrentHashMap<>(16);
     }
 
@@ -90,7 +94,7 @@ public class ChatServer {
                 // 等待客户端连接
                 Socket socket = serverSocket.accept();
                 // 创建ChatHandler
-                new Thread(new ChatHandler(this,socket)).start();
+                executorService.execute(new ChatHandler(this,socket));
             }
         } catch (IOException e) {
             e.printStackTrace();
