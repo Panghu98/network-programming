@@ -6,10 +6,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -98,11 +95,66 @@ public class ChatServer{
             client.configureBlocking(false);
 
             client.register(selector,SelectionKey.OP_READ);
-            System.out.println("客户端[" + client.socket().getPort() + "]已经连接");
+            System.out.println(getClientName(client) + "已经连接");
         }
 
         // READ事件 - 客户端发送了消息
+        if(key.isReadable()) {
+            SocketChannel client = (SocketChannel) key.channel();
+            String fwdMsg = receiver(client);
+            if (fwdMsg == null) {
+                // 客户端异常
+                key.cancel();
+                // selector被阻塞的话，进行唤醒，因为没必要在监听当前
+                // 这个可能存在问题的channel
+                selector.wakeup();
+            }else {
+                forwardMessage(client,fwdMsg);
+                if (fwdMsg.equals(QUIT)) {
+                    // 断开连接
+                     key.cancel();
+                     selector.wakeup();
+                     System.out.println(getClientName(client)+ "断开连接");
 
+                }
+            }
+        }
+
+    }
+
+    private String getClientName(SocketChannel client) {
+        return "客户端[" + client.socket().getPort() + "] ";
+    }
+
+    private void forwardMessage(SocketChannel client,String fwdMsg) throws IOException {
+        for (SelectionKey key:selector.keys()
+             ) {
+            Channel connectedChannel = key.channel();
+            if (connectedChannel instanceof ServerSocketChannel) {
+                continue;
+            }
+            if (key.isValid() && !connectedChannel.equals(client)) {
+                wBuffer.clear();
+                // 使用utf-8编码
+                wBuffer.put(charset.encode(getClientName(client) + ":" +fwdMsg));
+                wBuffer.flip();
+                // 写入Channel
+                while (wBuffer.hasRemaining()) {
+                    ((SocketChannel)connectedChannel).write(wBuffer);
+                }
+            }
+        }
+    }
+
+    private String receiver(SocketChannel client) throws IOException {
+        // 清理残留的信息
+        rBuffer.clear();
+        while (client.read(rBuffer) > 0) {
+            // 写转换成读
+            rBuffer.flip();
+        }
+
+        return String.valueOf(charset.decode(rBuffer));
     }
 
 
@@ -118,6 +170,11 @@ public class ChatServer{
                 e.printStackTrace();
             }
         }
+    }
+
+    public static void main(String[] args) {
+        ChatServer chatServer = new ChatServer(7777);
+        chatServer.start();
     }
 
 }
